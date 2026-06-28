@@ -1,0 +1,236 @@
+workflow:
+  rules:
+    # Trunk-based : "main" est l'unique branche longue durée côté code.
+    # Les tags vX.Y.Z portent la chaîne de promotion.
+    - if: '$CI_COMMIT_BRANCH == "main"'
+    - if: '$CI_COMMIT_TAG'
+
+stages:
+  - prepare
+  - build
+  - deploy
+  - promote
+
+# CI_SCRIPTS_DIR : répertoire contenant les scripts Python de ce template.
+# - CI GitLab     : laisser vide — le before_script clone ci-templates depuis GitLab.
+# - gitlab-ci-local : pointer vers le checkout local de ci-templates
+#   (ex: CI_SCRIPTS_DIR=/home/user/poc-devops/ci-templates dans .gitlab-ci-local.yml).
+variables:
+  CI_SCRIPTS_DIR: ""
+
+# Injecté par !reference dans les before_script des jobs Python.
+# Clone les scripts depuis GitLab si CI_SCRIPTS_DIR n'est pas défini localement.
+.fetch-scripts:
+  before_script:
+    - |
+      if [ -z "$CI_SCRIPTS_DIR" ]; then
+        apk add --no-cache git > /dev/null
+        git clone --quiet --depth=1 \
+          "http://root:${GITLAB_PUSH_TOKEN}@${INTERNAL_GITLAB_HOST}/root/ci-templates.git" \
+          /tmp/ci-scripts
+        export CI_SCRIPTS_DIR=/tmp/ci-scripts
+      fi
+    - pip install --quiet pyyaml
+
+.build:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  # Monorepo multi-services : un sous-dossier + un Dockerfile par service.
+  # ${SERVICES} est une liste "<service>=<image>" séparée par des espaces.
+
+.deploy:
+  stage: deploy
+  image: python:3.12-alpine
+  before_script:
+    - !reference [.fetch-scripts, before_script]
+
+# ---------------------------------------------------------------------------
+# prepare
+# ---------------------------------------------------------------------------
+
+semantic-release:
+  stage: prepare
+  image: node:20-alpine
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+      when: manual
+  variables:
+    GITLAB_TOKEN: $GITLAB_PUSH_TOKEN
+    GITLAB_URL: http://${INTERNAL_GITLAB_HOST}
+  script:
+    - apk add --no-cache ca-certificates git openssl
+    - |
+      releaserc_gitlab_url="$(node -e '
+        const fs = require("fs");
+        const file = ".releaserc.json";
+        if (!fs.existsSync(file)) process.exit(0);
+        const config = JSON.parse(fs.readFileSync(file, "utf8"));
+        for (const plugin of config.plugins || []) {
+          if (Array.isArray(plugin) && plugin[0] === "@semantic-release/gitlab" && plugin[1]?.gitlabUrl) {
+            console.log(plugin[1].gitlabUrl);
+            break;
+          }
+        }
+      ')"
+      export GITLAB_URL="${SEMANTIC_RELEASE_GITLAB_URL:-${releaserc_gitlab_url:-http://${INTERNAL_GITLAB_HOST}}}"
+      if [ "${GITLAB_URL#https://}" != "${GITLAB_URL}" ]; then
+        gitlab_host_port="${GITLAB_URL#https://}"
+        gitlab_host_port="${gitlab_host_port%%/*}"
+        gitlab_host="${gitlab_host_port%%:*}"
+        gitlab_port="${gitlab_host_port##*:}"
+        if [ "$gitlab_port" = "$gitlab_host" ]; then
+          gitlab_port=443
+        fi
+        echo | openssl s_client -showcerts \
+          -servername "$gitlab_host" \
+          -connect "$gitlab_host:$gitlab_port" 2>/dev/null \
+          | awk '/BEGIN CERTIFICATE/,/END CERTIFICATE/' > /tmp/gitlab-ca.crt
+        if [ -s /tmp/gitlab-ca.crt ]; then
+          export NODE_EXTRA_CA_CERTS=/tmp/gitlab-ca.crt
+          git config --global http.sslCAInfo /tmp/gitlab-ca.crt
+        fi
+      fi
+    - npm install --no-save semantic-release@24 @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/gitlab
+    - npx semantic-release
+
+# ---------------------------------------------------------------------------
+# build  (Kaniko — pas de démon Docker requis dans le runner Kubernetes)
+# ---------------------------------------------------------------------------
+
+build-dev:
+  extends: .build
+  interruptible: true
+  # needs: [] → DAG : démarre sans attendre le job manuel semantic-release.
+  needs: []
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - |
+      for entry in ${SERVICES}; do
+        svc="${entry%%=*}"
+        image="${entry#*=}"
+        /kaniko/executor \
+          --context "${CI_PROJECT_DIR}/${svc}" \
+          --dockerfile "${CI_PROJECT_DIR}/${svc}/Dockerfile" \
+          --destination "${image}:${CI_COMMIT_SHORT_SHA}" \
+          --destination "${image}:dev" \
+          --insecure \
+          --skip-tls-verify
+      done
+
+build-rec:
+  extends: .build
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  script:
+    # Vérifie que le tag n'existe pas déjà dans le registry (pas de retag silencieux).
+    - |
+      for entry in ${SERVICES}; do
+        image="${entry#*=}"
+        IMAGE_HOST="${image%%/*}"
+        IMAGE_PATH="${image#*/}"
+        if /busybox/wget -q --spider "http://${IMAGE_HOST}/v2/${IMAGE_PATH}/manifests/${CI_COMMIT_TAG}"; then
+          echo "${image}:${CI_COMMIT_TAG} existe déjà dans le registry." >&2
+          exit 1
+        fi
+      done
+    - |
+      for entry in ${SERVICES}; do
+        svc="${entry%%=*}"
+        image="${entry#*=}"
+        /kaniko/executor \
+          --context "${CI_PROJECT_DIR}/${svc}" \
+          --dockerfile "${CI_PROJECT_DIR}/${svc}/Dockerfile" \
+          --destination "${image}:${CI_COMMIT_TAG}" \
+          --insecure \
+          --skip-tls-verify
+      done
+
+# ---------------------------------------------------------------------------
+# deploy  (Python — pas de kustomize binaire requis, PyYAML suffit)
+# ---------------------------------------------------------------------------
+
+deploy-dev:
+  extends: .deploy
+  resource_group: manifests-dev
+  interruptible: true
+  needs: ["build-dev"]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  environment:
+    name: dev
+    url: http://${SERVICE_NAME}-dev.${DOMAIN}
+    kubernetes:
+      agent: $GITLAB_K8S_AGENT
+      namespace: ${APP_NAME}-dev
+  script:
+    - python3 $CI_SCRIPTS_DIR/scripts/deploy.py dev
+
+deploy-rec:
+  extends: .deploy
+  resource_group: manifests-rec
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  environment:
+    name: rec
+    url: http://${SERVICE_NAME}-rec.${DOMAIN}
+    kubernetes:
+      agent: $GITLAB_K8S_AGENT
+      namespace: ${APP_NAME}-rec
+  script:
+    - python3 $CI_SCRIPTS_DIR/scripts/deploy.py rec
+
+deploy-preprod:
+  extends: .deploy
+  resource_group: manifests-preprod
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/ && $HAS_PREPROD == "true"'
+      when: manual
+  environment:
+    name: preprod
+    url: http://${SERVICE_NAME}-preprod.${DOMAIN}
+    kubernetes:
+      agent: $GITLAB_K8S_AGENT
+      namespace: ${APP_NAME}-preprod
+  script:
+    - python3 $CI_SCRIPTS_DIR/scripts/deploy.py preprod
+
+deploy-prod:
+  extends: .deploy
+  resource_group: manifests-prod
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+      when: manual
+  environment:
+    name: prod
+    url: http://${SERVICE_NAME}.${DOMAIN}
+    kubernetes:
+      agent: $GITLAB_K8S_AGENT
+      namespace: ${APP_NAME}
+  script:
+    - python3 $CI_SCRIPTS_DIR/scripts/deploy.py prod
+
+# ---------------------------------------------------------------------------
+# promote
+# ---------------------------------------------------------------------------
+
+rollback-prod:
+  stage: promote
+  image: python:3.12-alpine
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main" && $REVERT_SHA'
+      when: manual
+  environment:
+    name: prod
+  before_script:
+    - !reference [.fetch-scripts, before_script]
+  script:
+    - python3 $CI_SCRIPTS_DIR/scripts/rollback.py

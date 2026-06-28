@@ -1,0 +1,16 @@
+# Configuration gitlab-ci-local pour le dépôt ci-templates lui-même.
+# https://github.com/firecow/gitlab-ci-local
+#
+# Utilisation :
+#   gitlab-ci-local deploy-dev
+#   gitlab-ci-local --variable CI_COMMIT_TAG=v1.2.3 deploy-rec
+#
+# Secrets (ne pas committer) : créer .gitlab-ci-local-secrets.yml avec :
+#   variables:
+#     GITLAB_PUSH_TOKEN: <votre-token>
+
+variables:
+  # Pointe vers ce dépôt local — évite le clone depuis GitLab à chaque job.
+  CI_SCRIPTS_DIR: ${PWD}
+  INTERNAL_GITLAB_HOST: gitlab.192.168.33.100.nip.io
+  DOMAIN: 192.168.33.100.nip.io
