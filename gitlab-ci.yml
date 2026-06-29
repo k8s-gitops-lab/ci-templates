@@ -222,6 +222,7 @@ rollback-prod:
   stage: promote
   image: python:3.12-alpine
   interruptible: false
+  needs: []
   rules:
     - if: '$CI_COMMIT_BRANCH == "main" && $REVERT_SHA'
       when: manual
