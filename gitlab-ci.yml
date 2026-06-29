@@ -6,7 +6,6 @@ workflow:
     - if: '$CI_COMMIT_TAG'
 
 stages:
-  - prepare
   - build
   - deploy
   - promote
@@ -46,17 +45,13 @@ variables:
   before_script:
     - !reference [.fetch-scripts, before_script]
 
-# ---------------------------------------------------------------------------
-# prepare
-# ---------------------------------------------------------------------------
-
 semantic-release:
-  stage: prepare
+  stage: promote
   image: node:20-alpine
   interruptible: false
+  needs: ["deploy-dev"]
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
-      when: manual
   variables:
     GITLAB_TOKEN: $GITLAB_PUSH_TOKEN
     GITLAB_URL: http://${INTERNAL_GITLAB_HOST}
@@ -111,7 +106,7 @@ semantic-release:
 build-dev:
   extends: .build
   interruptible: true
-  # needs: [] → DAG : démarre sans attendre le job manuel semantic-release.
+  # needs: [] → DAG : démarre immédiatement sans attendre le stage précédent.
   needs: []
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
