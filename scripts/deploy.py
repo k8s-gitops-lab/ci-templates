@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Met à jour les tags d'image dans le dépôt de manifests et pousse sur la branche cible.
+"""Met à jour les tags d'image et les hostnames HTTPRoute dans le dépôt de manifests.
 
 Usage: python3 deploy.py <env>    # env = dev | rec | preprod | prod
 
@@ -11,6 +11,7 @@ Variables d'environnement attendues:
   GITLAB_PUSH_TOKEN        token de push sur le dépôt manifests
   MANIFESTS_PROJECT_PATH   "root/helloworld-iac"
   MANIFESTS_PATH           sous-dossier kustomize dans le dépôt manifests (ex: "k8s")
+  DOMAIN                   domaine de base pour les HTTPRoutes (ex: 192.168.33.100.nip.io)
 """
 import os
 import subprocess
@@ -24,11 +25,11 @@ _ENV_BRANCH = {"dev": "dev", "rec": "rec", "preprod": "preprod", "prod": "main"}
 
 
 def parse_services(raw: str) -> dict[str, str]:
-    """'svc=registry/svc ...' → {image_base: image_base} mapping pour kustomize."""
+    """'svc=registry/svc ...' → {svc_name: image_base}"""
     result = {}
     for spec in raw.strip().split():
-        _svc_name, image_base = spec.split("=", 1)
-        result[image_base] = image_base
+        svc_name, image_base = spec.split("=", 1)
+        result[svc_name] = image_base
     return result
 
 
@@ -39,14 +40,14 @@ def manifests_url() -> str:
     return f"http://root:{token}@{host}/{path}.git"
 
 
-def update_kustomize_images(kustomize_dir: Path, image_bases: list[str], tag: str) -> bool:
+def update_kustomize_images(kustomize_dir: Path, services: dict[str, str], tag: str) -> bool:
     """Met à jour kustomization.yaml avec le nouveau tag. Retourne True si modifié."""
     kfile = kustomize_dir / "kustomization.yaml"
     data = yaml.safe_load(kfile.read_text()) or {}
     images: list[dict] = data.setdefault("images", [])
     changed = False
 
-    for image_base in image_bases:
+    for image_base in services.values():
         entry = next((img for img in images if img.get("name") == image_base), None)
         if entry:
             if entry.get("newTag") != tag:
@@ -58,6 +59,29 @@ def update_kustomize_images(kustomize_dir: Path, image_bases: list[str], tag: st
 
     if changed:
         kfile.write_text(yaml.dump(data, allow_unicode=True, sort_keys=False, default_flow_style=False))
+
+    return changed
+
+
+def update_routes(kustomize_dir: Path, svc_names: list[str], env_name: str, domain: str) -> bool:
+    """Met à jour les hostnames des HTTPRoutes selon l'environnement. Retourne True si modifié."""
+    suffix = "" if env_name == "prod" else f"-{env_name}"
+    changed = False
+
+    for svc_name in svc_names:
+        route_file = kustomize_dir / f"{svc_name}-route.yaml"
+        if not route_file.exists():
+            continue
+
+        data = yaml.safe_load(route_file.read_text())
+        if not data or data.get("kind") != "HTTPRoute":
+            continue
+
+        expected = f"{svc_name}{suffix}.{domain}"
+        if data.get("spec", {}).get("hostnames") != [expected]:
+            data.setdefault("spec", {})["hostnames"] = [expected]
+            route_file.write_text(yaml.dump(data, allow_unicode=True, sort_keys=False, default_flow_style=False))
+            changed = True
 
     return changed
 
@@ -79,31 +103,34 @@ def main() -> None:
     if not services_raw.strip():
         sys.exit("La variable SERVICES est vide ou absente.")
 
-    image_bases = list(parse_services(services_raw))
+    services = parse_services(services_raw)
 
-    # dev utilise le SHA court, les autres utilisent le tag sémantique
     if env_name == "dev":
         tag = os.environ.get("CI_COMMIT_SHORT_SHA") or "local"
     else:
         tag = os.environ.get("CI_COMMIT_TAG") or sys.exit(f"CI_COMMIT_TAG requis pour l'env {env_name!r}.")
 
+    domain = os.environ.get("DOMAIN", "")
     manifests_path = os.environ.get("MANIFESTS_PATH", "k8s")
     project_path = os.environ.get("MANIFESTS_PROJECT_PATH", "")
-    services_label = ", ".join(os.path.basename(b) for b in image_bases)
+    services_label = ", ".join(services.keys())
 
     with tempfile.TemporaryDirectory(prefix="manifests-") as tmpdir:
         git("clone", "--depth=1", "--branch", branch, manifests_url(), tmpdir)
 
         kustomize_dir = Path(tmpdir) / manifests_path
-        changed = update_kustomize_images(kustomize_dir, image_bases, tag)
+        changed = update_kustomize_images(kustomize_dir, services, tag)
+
+        if domain:
+            changed |= update_routes(kustomize_dir, list(services.keys()), env_name, domain)
 
         if not changed:
-            print(f"Aucun changement d'image sur {env_name} (tag {tag} déjà présent).")
+            print(f"Aucun changement sur {env_name} (tag {tag} déjà présent).")
             return
 
         git("config", "user.email", "ci@gitlab.local", cwd=tmpdir)
         git("config", "user.name", "GitLab CI", cwd=tmpdir)
-        git("add", f"{manifests_path}/kustomization.yaml", cwd=tmpdir)
+        git("add", manifests_path, cwd=tmpdir)
         git(
             "commit", "-m",
             f"ci: deploy {services_label} sur {env_name} (tag {tag}) [skip ci]",
