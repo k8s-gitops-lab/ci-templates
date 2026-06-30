@@ -37,7 +37,8 @@ variables:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
   before_script:
-    - mkdir -p /kaniko/.docker
+    - mkdir -p /kaniko/.docker /kaniko/ssl/certs
+    - echo "${ZSCALER_CA_B64}" | base64 -d >> /kaniko/ssl/certs/ca-certificates.crt
     - echo "{\"auths\":{\"ghcr.io\":{\"auth\":\"$(echo -n "x-token:${GHCR_TOKEN}" | base64)\"}}}" > /kaniko/.docker/config.json
   # Monorepo multi-services : un sous-dossier + un Dockerfile par service.
   # ${SERVICES} est une liste "<service>=<image>" séparée par des espaces.
