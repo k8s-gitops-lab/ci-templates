@@ -36,6 +36,9 @@ variables:
   image:
     name: gcr.io/kaniko-project/executor:debug
     entrypoint: [""]
+  before_script:
+    - mkdir -p /kaniko/.docker
+    - echo "${DOCKER_AUTH_CONFIG}" > /kaniko/.docker/config.json
   # Monorepo multi-services : un sous-dossier + un Dockerfile par service.
   # ${SERVICES} est une liste "<service>=<image>" séparée par des espaces.
 
@@ -119,9 +122,7 @@ build-dev:
           --context "${CI_PROJECT_DIR}/${svc}" \
           --dockerfile "${CI_PROJECT_DIR}/${svc}/Dockerfile" \
           --destination "${image}:${CI_COMMIT_SHORT_SHA}" \
-          --destination "${image}:dev" \
-          --insecure \
-          --skip-tls-verify
+          --destination "${image}:dev"
       done
 
 build-rec:
