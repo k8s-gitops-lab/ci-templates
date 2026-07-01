@@ -7,7 +7,7 @@ Variables d'environnement attendues:
   REVERT_SHA               SHA du commit à annuler sur main
   INTERNAL_GITLAB_HOST     host GitLab in-cluster
   GITLAB_PUSH_TOKEN        token de push
-  MANIFESTS_PROJECT_PATH   "root/helloworld-iac"
+  MANIFESTS_PROJECT_PATH   "infra/helloworld-iac"
 """
 import os
 import subprocess
