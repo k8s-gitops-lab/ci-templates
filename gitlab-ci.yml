@@ -132,8 +132,13 @@ build-rec:
     name: gcr.io/go-containerregistry/crane:debug
     entrypoint: [""]
   interruptible: false
+  variables:
+    DOCKER_CONFIG: /tmp/.docker
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  before_script:
+    - mkdir -p "${DOCKER_CONFIG}"
+    - echo "{\"auths\":{\"ghcr.io\":{\"auth\":\"$(echo -n "x-token:${GHCR_TOKEN}" | base64)\"}}}" > "${DOCKER_CONFIG}/config.json"
   script:
     # Retag l'image SHA (buildée par build-dev) avec le tag de version.
     # Évite un rebuild : dev et prod ont le même digest.
