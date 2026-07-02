@@ -38,7 +38,7 @@ Le template définit les stages `build`, `deploy` et `promote`.
 
 ## Contraintes
 
-Le template dépend de GitLab, de GHCR (`ghcr.io/poc-devops-elkouhen`, pas de
+Le template dépend de GitLab, de GHCR (`ghcr.io/k8s-gitops-lab`, pas de
 registry interne au cluster) et du dépôt manifests. Il ne doit pas connaître
 la topologie Kubernetes autrement que par les variables fournies par
 l'application et par les environnements GitLab déclarés.
