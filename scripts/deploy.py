@@ -41,15 +41,27 @@ def manifests_url() -> str:
 
 
 def update_kustomize_images(kustomize_dir: Path, services: dict[str, str], tag: str) -> bool:
-    """Met à jour kustomization.yaml avec le nouveau tag. Retourne True si modifié."""
+    """Met à jour kustomization.yaml avec le nouveau tag. Retourne True si modifié.
+
+    Le matching se fait sur le nom de service (suffixe après le dernier "/"),
+    pas sur le nom d'image complet : si le registre change (ex. migration
+    vers un nouvel hôte), l'entrée existante est corrigée en place au lieu
+    d'être dupliquée à côté de l'ancienne, qui resterait sinon orpheline.
+    """
     kfile = kustomize_dir / "kustomization.yaml"
     data = yaml.safe_load(kfile.read_text()) or {}
     images: list[dict] = data.setdefault("images", [])
     changed = False
 
-    for image_base in services.values():
-        entry = next((img for img in images if img.get("name") == image_base), None)
+    for svc_name, image_base in services.items():
+        entry = next(
+            (img for img in images if img.get("name", "").rsplit("/", 1)[-1] == svc_name),
+            None,
+        )
         if entry:
+            if entry.get("name") != image_base:
+                entry["name"] = image_base
+                changed = True
             if entry.get("newTag") != tag:
                 entry["newTag"] = tag
                 changed = True
