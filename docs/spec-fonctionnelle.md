@@ -30,8 +30,10 @@ La promotion ne reconstruit pas les images après `rec`. Les environnements
 suivants réutilisent le même tag `vX.Y.Z` et ne font que mettre à jour l'état
 GitOps.
 
-## Échec attendu
+## Idempotence du build release
 
-Le build release échoue si l'image taguée existe déjà dans le registry. Cette
-règle évite d'écraser silencieusement une image immuable lors d'un retry ou
-d'une erreur de version.
+`build-rec` ne reconstruit jamais l'image : il retag l'image `<sha-court>`
+déjà buildée par `build-dev` avec le tag `vX.Y.Z`. Si ce tag existe déjà sur
+GHCR (retry du job, ou tag déjà promu), le job ne fait rien et continue
+silencieusement — il n'écrase jamais une image existante, mais n'échoue pas
+non plus explicitement dans ce cas.

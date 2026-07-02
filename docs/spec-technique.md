@@ -10,7 +10,7 @@
 
 ## Jobs
 
-Le template définit les stages `prepare`, `build`, `deploy` et `promote`.
+Le template définit les stages `build`, `deploy` et `promote`.
 
 - `semantic-release` utilise Node 20 et les plugins semantic-release.
 - `build-dev` construit chaque service avec Kaniko et pousse les tags
@@ -38,6 +38,7 @@ Le template définit les stages `prepare`, `build`, `deploy` et `promote`.
 
 ## Contraintes
 
-Le template dépend de GitLab, du registry interne et du dépôt manifests. Il ne
-doit pas connaître la topologie Kubernetes autrement que par les variables
-fournies par l'application et par les environnements GitLab déclarés.
+Le template dépend de GitLab, de GHCR (`ghcr.io/poc-devops-elkouhen`, pas de
+registry interne au cluster) et du dépôt manifests. Il ne doit pas connaître
+la topologie Kubernetes autrement que par les variables fournies par
+l'application et par les environnements GitLab déclarés.
