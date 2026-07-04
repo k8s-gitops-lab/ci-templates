@@ -9,7 +9,7 @@ Variables d'environnement attendues:
   CI_COMMIT_TAG            tag utilisé pour rec/preprod/prod (absent sur main si pas de release)
   INTERNAL_GITLAB_HOST     host GitLab in-cluster (pour le clone manifests)
   GITLAB_PUSH_TOKEN        token de push sur le dépôt manifests
-  MANIFESTS_PROJECT_PATH   "infra/helloworld-iac"
+  MANIFESTS_PROJECT_PATH   "hello-groupe/helloworld-iac"
   MANIFESTS_PATH           sous-dossier kustomize dans le dépôt manifests (ex: "k8s")
   DOMAIN                   domaine de base pour les HTTPRoutes (ex: 192.168.33.100.nip.io)
 """
