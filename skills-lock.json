@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "skills": {
+    "gitlab-ci-patterns": {
+      "source": "wshobson/agents",
+      "sourceType": "github",
+      "skillPath": "plugins/cicd-automation/skills/gitlab-ci-patterns/SKILL.md",
+      "computedHash": "294fe3b5ac78ca7f15ec3e5257e6963b0a659e95700d782739fcb4b065496a83"
+    }
+  }
+}
