@@ -18,7 +18,8 @@ Chaque service listé doit avoir un sous-dossier du même nom et un `Dockerfile`
 Le template supporte le flow plateforme :
 
 - merge sur `main` : build dev puis déploiement dev automatique ;
-- job manuel `semantic-release` : création du tag `vX.Y.Z` ;
+- `semantic-release` (automatique après `deploy-dev`) : création du tag
+  `vX.Y.Z` si les Conventional Commits mergés le justifient ;
 - tag `vX.Y.Z` : build release puis déploiement rec automatique ;
 - gate manuel vers preprod si `HAS_PREPROD=true` ;
 - gate manuel vers prod ;

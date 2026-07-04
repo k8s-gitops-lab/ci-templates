@@ -22,7 +22,9 @@ Le template définit les stages `build`, `deploy` et `promote`.
   module `tls` natif de Node (pas de dépendance à `openssl`).
 - `build-dev` construit chaque service avec Kaniko et pousse les tags
   `<sha-court>` et `dev`.
-- `build-rec` construit chaque service avec Kaniko et pousse le tag `vX.Y.Z`.
+- `build-rec` ne reconstruit rien : il copie (`crane copy`) l'image
+  `<sha-court>` déjà poussée par `build-dev` vers le tag `vX.Y.Z` (même
+  digest). Si le tag existe déjà sur le registre, le job ne fait rien.
 - `deploy-dev`, `deploy-rec`, `deploy-preprod` et `deploy-prod` exécutent
   `scripts/deploy.py`.
 - `rollback-prod` exécute `scripts/rollback.py`.

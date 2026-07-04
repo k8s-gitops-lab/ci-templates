@@ -7,7 +7,7 @@ objectif est d'éviter la duplication de logique CI/CD dans chaque application
 et de rendre le pattern `build once, promote everywhere` réplicable.
 
 La vision produit complète est dans
-`../../platform-cicd/docs/prd.md`.
+`../../control-plane/docs/prd.md`.
 
 ## Produit attendu
 
@@ -28,7 +28,8 @@ Le projet doit fournir :
 ## Critères d'acceptation
 
 - Une application peut inclure le template avec une ref versionnée.
-- Les builds dev et release utilisent Kaniko sans démon Docker.
+- Le build dev utilise Kaniko sans démon Docker ; la release retague l'image
+  existante (`crane`) sans rebuild.
 - Les promotions mettent à jour le dépôt manifests via Git.
 - `HAS_PREPROD` active ou désactive le stade `preprod`.
 - Le rollback prod est possible par revert GitOps.
