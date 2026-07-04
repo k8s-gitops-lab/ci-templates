@@ -13,6 +13,7 @@ versionnée depuis les dépôts applicatifs.
 | `gitlab-ci.yml` | Template CI inclus par les apps (`include: project/ref/file`) |
 | `scripts/deploy.py` | Met à jour `kustomization.yaml` et les HTTPRoutes dans le dépôt manifests |
 | `scripts/rollback.py` | Revert GitOps sur la branche `main` du dépôt manifests |
+| `scripts/gitlab-release-env.js` | Résout `GITLAB_URL` et fait confiance au certificat auto-signé de GitLab pour le job `semantic-release` |
 | `.gitlab-ci-local.yml` | Surcharges pour exécution locale avec `gitlab-ci-local` |
 
 ## Contrat — ne pas casser
