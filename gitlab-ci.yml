@@ -21,6 +21,11 @@ variables:
   # l'auth ne peut cibler qu'un seul registre a la fois — celui-ci doit
   # correspondre a l'hote utilise dans SERVICES.
   REGISTRY_HOST: ghcr.io
+  # Constante de plateforme (meme instance GitLab in-cluster pour toutes les
+  # apps de ce POC, cf. platform-gitops/argocd/apps.yaml: gitlab.internalHost)
+  # — pas une variable propre par app. A surcharger localement dans le
+  # .gitlab-ci.yml d'une app seulement si elle cible une autre instance GitLab.
+  INTERNAL_GITLAB_HOST: gitlab-webservice-default.gitlab.svc.cluster.local:8181
 
 # Injecté par !reference dans les before_script des jobs qui ont besoin des
 # scripts de ce dépôt (Python et Node). Clone ci-templates si CI_SCRIPTS_DIR

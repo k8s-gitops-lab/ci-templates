@@ -13,6 +13,11 @@ Une application consommatrice inclut le template et fournit ses variables :
 
 Chaque service listé doit avoir un sous-dossier du même nom et un `Dockerfile`.
 
+`INTERNAL_GITLAB_HOST` n'en fait pas partie : c'est une constante de
+plateforme (même instance GitLab in-cluster pour toutes les apps), fournie
+par défaut dans `gitlab-ci.yml`. Une app ne la déclare que si elle cible une
+autre instance GitLab.
+
 ## Flow
 
 Le template supporte le flow plateforme :
