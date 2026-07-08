@@ -8,7 +8,7 @@ et de rendre le pattern `build once, promote everywhere` réplicable via des
 inclusions versionnées `include:component`.
 
 La vision produit complète est dans
-`../../control-plane/docs/prd.md`.
+`../../cockpit/docs/prd.md`.
 
 ## Produit attendu
 
