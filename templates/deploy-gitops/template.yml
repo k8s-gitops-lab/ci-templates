@@ -59,7 +59,7 @@ deploy-dev:
   extends: .deploy-gitops
   resource_group: manifests-dev
   interruptible: true
-  needs: ["build-dev"]
+  needs: ["docker-buildah-build"]
   rules:
     - if: '$CI_COMMIT_BRANCH == "main"'
   environment:
@@ -75,6 +75,7 @@ deploy-rec:
   extends: .deploy-gitops
   resource_group: manifests-rec
   interruptible: false
+  needs: ["docker-publish"]
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
   environment:
@@ -90,6 +91,7 @@ deploy-preprod:
   extends: .deploy-gitops
   resource_group: manifests-preprod
   interruptible: false
+  needs: ["docker-publish"]
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/ && $HAS_PREPROD == "true"'
       when: manual
@@ -106,6 +108,7 @@ deploy-prod:
   extends: .deploy-gitops
   resource_group: manifests-prod
   interruptible: false
+  needs: ["docker-publish"]
   rules:
     - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
       when: manual

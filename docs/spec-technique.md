@@ -2,43 +2,57 @@
 
 ## Fichiers principaux
 
-- `templates/build-kaniko/template.yml` contient le composant de build
-  (`build-dev`, `build-rec`).
+- `templates/build-docker/template.yml` enrobe le composant
+  [to-be-continuous/docker](https://gitlab.com/to-be-continuous/docker)
+  (`docker-buildah-build`, `docker-publish`).
 - `templates/deploy-gitops/template.yml` contient le composant de déploiement
   GitOps (`deploy-dev`, `deploy-rec`, `deploy-preprod`, `deploy-prod`).
-- `templates/promote/template.yml` contient le composant de promotion
-  (`semantic-release`, `rollback-prod`).
+- `templates/promote/template.yml` enrobe le composant
+  [to-be-continuous/semantic-release](https://gitlab.com/to-be-continuous/semantic-release)
+  (`semantic-release`) et contient `rollback-prod` (propre à ce POC).
 - `scripts/deploy.py` met à jour les tags d'image dans le dépôt manifests.
 - `scripts/rollback.py` revert un commit sur la branche `main` du dépôt
   manifests.
-- `scripts/gitlab-release-env.js` résout `GITLAB_URL` et récupère le
-  certificat auto-signé de GitLab pour le job `semantic-release`.
 - `.gitlab-ci-local.yml` facilite l'exécution locale des jobs.
 
 ## Composants et jobs
 
-Les composants ne déclarent pas `stages:` : la pipeline applicative top-level
-doit déclarer `build`, `deploy` et `promote` dans cet ordre.
+`deploy-gitops` ne déclare pas `stages:` (comme avant). `build-docker` et
+`promote` héritent chacun d'un `stages:` complet de to-be-continuous — la
+pipeline applicative top-level doit déclarer la liste complète et cohérente
+(voir `README.md`), pas seulement `build`/`deploy`/`promote`.
 
 Chaque composant déclare son contrat en `spec:inputs`, puis mappe ces inputs
-vers les variables attendues par les jobs et les scripts (`SERVICES`,
-`APP_NAME`, `SERVICE_NAME`, `MANIFESTS_PROJECT_PATH`, `MANIFESTS_PATH`,
-`HAS_PREPROD`).
+vers les variables attendues par les jobs et les scripts (`APP_NAME`,
+`SERVICE_NAME`, `MANIFESTS_PROJECT_PATH`, `MANIFESTS_PATH`, `HAS_PREPROD`).
+`build-docker` ne porte plus de contrat `services` par app : pour un
+monorepo multi-service, l'app ajoute directement un `parallel: matrix:` sur
+les jobs `docker-buildah-build`/`docker-publish` (GitLab ne permet pas de
+faire varier dynamiquement le nombre d'`include:component` à partir d'une
+simple liste en input).
 
-- `semantic-release` utilise Node 20 et les plugins semantic-release. Il
-  clone `ci-templates` (comme les jobs `deploy`) pour exécuter
-  `scripts/gitlab-release-env.js`, qui détermine `GITLAB_URL` (depuis
-  `.releaserc.json` ou `INTERNAL_GITLAB_HOST`) et ajoute le certificat
-  auto-signé de l'endpoint HTTPS au trust store si nécessaire, via le
-  module `tls` natif de Node (pas de dépendance à `openssl`).
-- `build-dev` construit chaque service avec Kaniko et pousse les tags
-  `<sha-court>` et `dev`.
-- `build-rec` ne reconstruit rien : il copie (`crane copy`) l'image
-  `<sha-court>` déjà poussée par `build-dev` vers le tag `vX.Y.Z` (même
-  digest). Si le tag existe déjà sur le registre, le job ne fait rien.
+- `semantic-release` (to-be-continuous) lit directement le `.releaserc.json`
+  de l'app. Chaque app pointe déjà son plugin `@semantic-release/gitlab` sur
+  l'endpoint interne HTTP `INTERNAL_GITLAB_HOST` (voir `.releaserc.json` de
+  `helloworld`) : pas de certificat auto-signé à faire confiance pour l'appel
+  à l'API GitLab. `GITLAB_TOKEN` reste fourni par le composant `promote` via
+  `GITLAB_PUSH_TOKEN`.
+- `docker-buildah-build` construit l'image avec Buildah (builder par défaut
+  de to-be-continuous — Kaniko, abandonné par Google depuis janvier 2025,
+  reste disponible via l'input `build-tool`) et pousse l'image "snapshot"
+  (`DOCKER_SNAPSHOT_IMAGE`, taguée par défaut avec le SHA court du commit).
+- `docker-publish` ne reconstruit rien : il copie (Skopeo) l'image snapshot
+  vers l'image "release" (`DOCKER_RELEASE_IMAGE`, tag `vX.Y.Z`) sur tag
+  sémantique — même pattern build-once/promote que l'ancien `crane copy`,
+  maintenu en amont.
 - `deploy-dev`, `deploy-rec`, `deploy-preprod` et `deploy-prod` exécutent
   `scripts/deploy.py`.
 - `rollback-prod` exécute `scripts/rollback.py`.
+
+Confiance TLS : les composants to-be-continuous lisent automatiquement la
+variable de plateforme `CUSTOM_CA_CERTS` (PEM en clair, pas de
+`before_script` à écrire) pour faire confiance au proxy sortant du lab — voir
+`AGENTS.md`.
 
 ## Scripts Python
 

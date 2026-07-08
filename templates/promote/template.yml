@@ -14,9 +14,27 @@ variables:
   INTERNAL_GITLAB_HOST: gitlab-webservice-default.gitlab.svc.cluster.local:8181
   MANIFESTS_PROJECT_PATH: $[[ inputs.manifests_project_path ]]
 
+# Le job `semantic-release` fait main (npm install + trust manuel du
+# certificat auto-signe via un script Node ad hoc, retire) est remplace par
+# ce composant, maintenu en amont — meme outil. Le contournement TLS n'est
+# plus necessaire : le `.releaserc.json` de chaque app pointe deja sur
+# l'endpoint interne HTTP `INTERNAL_GITLAB_HOST` (pas de HTTPS a faire
+# confiance pour l'appel a l'API GitLab). CUSTOM_CA_CERTS (meme variable de
+# plateforme que build-docker) couvre le reste (accès npm via le proxy
+# sortant).
+include:
+  - component: gitlab.com/to-be-continuous/semantic-release/gitlab-ci-semrel@4.3.0
+    inputs:
+      auto-release-enabled: true
+
+semantic-release:
+  needs: ["deploy-dev"]
+  variables:
+    GITLAB_TOKEN: $GITLAB_PUSH_TOKEN
+
 # Injecté par !reference dans les before_script des jobs qui ont besoin des
-# scripts de ce dépôt (Python et Node). Clone ci-templates si CI_SCRIPTS_DIR
-# n'est pas défini localement.
+# scripts de ce dépôt (Python). Clone ci-templates si CI_SCRIPTS_DIR n'est
+# pas défini localement.
 .fetch-scripts:
   before_script:
     - |
@@ -27,27 +45,6 @@ variables:
           /tmp/ci-scripts
         export CI_SCRIPTS_DIR=/tmp/ci-scripts
       fi
-
-semantic-release:
-  stage: promote
-  image: node:20-alpine
-  interruptible: false
-  needs: ["deploy-dev"]
-  rules:
-    - if: '$CI_COMMIT_BRANCH == "main"'
-  variables:
-    GITLAB_TOKEN: $GITLAB_PUSH_TOKEN
-    GITLAB_URL: http://${INTERNAL_GITLAB_HOST}
-  before_script:
-    - !reference [.fetch-scripts, before_script]
-  script:
-    - apk add --no-cache ca-certificates git
-    # Résout GITLAB_URL (via .releaserc.json) et fait confiance au certificat
-    # auto-signé de l'endpoint HTTPS s'il y en a un. Voir scripts/gitlab-release-env.js.
-    - node "$CI_SCRIPTS_DIR/scripts/gitlab-release-env.js"
-    - source /tmp/gitlab-tls.env
-    - npm install --no-save semantic-release@24 @semantic-release/commit-analyzer @semantic-release/release-notes-generator @semantic-release/gitlab
-    - npx semantic-release
 
 rollback-prod:
   stage: promote

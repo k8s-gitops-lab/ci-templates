@@ -4,14 +4,13 @@
 
 Une application consommatrice inclut les composants et fournit leurs inputs :
 
-- `services`, liste `<service>=<image>` séparée par des espaces ;
-- `app_name` ;
-- `service_name`, service utilisé pour les URLs GitLab ;
-- `manifests_project_path` ;
-- `manifests_path` ;
-- `has_preprod`.
-
-Chaque service listé doit avoir un sous-dossier du même nom et un `Dockerfile`.
+- `build-docker` : `dockerfile`, `context_path`, `snapshot_image`,
+  `release_image` — un jeu d'inputs par service (voir `README.md` pour le
+  cas monorepo multi-service, géré par `parallel: matrix:` côté app, pas par
+  le composant) ;
+- `deploy-gitops` : `app_name`, `service_name` (service utilisé pour les URLs
+  GitLab), `manifests_project_path`, `manifests_path`, `has_preprod` ;
+- `promote` : `manifests_project_path`.
 
 `INTERNAL_GITLAB_HOST` n'en fait pas partie : c'est une constante de
 plateforme (même instance GitLab in-cluster pour toutes les apps), fournie
@@ -38,8 +37,6 @@ GitOps.
 
 ## Idempotence du build release
 
-`build-rec` ne reconstruit jamais l'image : il retag l'image `<sha-court>`
-déjà buildée par `build-dev` avec le tag `vX.Y.Z`. Si ce tag existe déjà sur
-GHCR (retry du job, ou tag déjà promu), le job ne fait rien et continue
-silencieusement — il n'écrase jamais une image existante, mais n'échoue pas
-non plus explicitement dans ce cas.
+`docker-publish` ne reconstruit jamais l'image : il copie (Skopeo) l'image
+snapshot déjà poussée par `docker-buildah-build` vers le tag `vX.Y.Z`, sans
+rebuild.

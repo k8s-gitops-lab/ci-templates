@@ -29,8 +29,9 @@ Le projet doit fournir :
 ## Critères d'acceptation
 
 - Une application peut inclure les composants avec une ref versionnée.
-- Le build dev utilise Kaniko sans démon Docker ; la release retague l'image
-  existante (`crane`) sans rebuild.
+- Le build dev utilise un outil sans démon Docker (Buildah par défaut, Kaniko
+  disponible en option) ; la release retague l'image existante (Skopeo) sans
+  rebuild.
 - Les promotions mettent à jour le dépôt manifests via Git.
 - `has_preprod` active ou désactive le stade `preprod`.
 - Le rollback prod est possible par revert GitOps.

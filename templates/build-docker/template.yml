@@ -1,0 +1,42 @@
+spec:
+  inputs:
+    snapshot_image:
+      description: >-
+        Image "snapshot" poussee au build, retaguee sans rebuild par
+        docker-publish sur tag vX.Y.Z. Pour un monorepo multi-service,
+        laisser le defaut et surcharger DOCKER_SNAPSHOT_IMAGE par service via
+        un bloc `parallel: matrix:` sur le job `docker-buildah-build` dans le
+        `.gitlab-ci.yml` de l'app (voir README).
+      default: $CI_REGISTRY_IMAGE/snapshot:$CI_COMMIT_SHORT_SHA
+    release_image:
+      description: >-
+        Image "release" (repository, sans tag) poussee par docker-publish.
+        Meme remarque monorepo que snapshot_image.
+      default: $CI_REGISTRY_IMAGE
+    dockerfile:
+      description: Chemin du Dockerfile (relatif a la racine du depot applicatif).
+      default: Dockerfile
+    context_path:
+      description: Contexte de build Docker, si different du dossier du Dockerfile.
+      default: ''
+---
+# Builder interchangeable (Buildah par defaut ; Kaniko est abandonne par
+# Google depuis janvier 2025) et pattern build-once/promote (docker-publish
+# retague l'image snapshot sans rebuild), fournis par to-be-continuous —
+# plus de duplication de cette logique dans ce depot. Version figee ici,
+# seul point de mise a jour du composant amont pour toutes les apps.
+include:
+  - component: gitlab.com/to-be-continuous/docker/gitlab-ci-docker@6.1.0
+    inputs:
+      snapshot-image: $[[ inputs.snapshot_image ]]
+      release-image: $[[ inputs.release_image ]]
+      file: $[[ inputs.dockerfile ]]
+      context-path: $[[ inputs.context_path ]]
+      # deploy-rec est deja un job automatique sur tag (cf. deploy-gitops) ;
+      # pas de gate manuel supplementaire au niveau de la publication d'image.
+      prod-publish-strategy: auto
+
+# La confiance TLS (proxy sortant + GitLab interne auto-signe) est geree
+# automatiquement par le composant via la variable de plateforme
+# CUSTOM_CA_CERTS (PEM en clair, pas de before_script a ecrire) — voir
+# AGENTS.md.
