@@ -2,8 +2,8 @@
 # https://github.com/firecow/gitlab-ci-local
 #
 # Utilisation :
-#   gitlab-ci-local deploy-dev
-#   gitlab-ci-local --variable CI_COMMIT_TAG=v1.2.3 deploy-rec
+#   gitlab-ci-local --file templates/build-kaniko/template.yml --preview \
+#     --input 'services=helloworld-svc=ghcr.io/k8s-gitops-lab/helloworld-svc'
 #
 # Secrets (ne pas committer) : créer .gitlab-ci-local-secrets.yml avec :
 #   variables:

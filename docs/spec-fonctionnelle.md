@@ -2,31 +2,31 @@
 
 ## Contrat applicatif
 
-Une application consommatrice inclut le template et fournit ses variables :
+Une application consommatrice inclut les composants et fournit leurs inputs :
 
-- `APP_NAME` ;
-- `SERVICES`, liste `<service>=<image>` séparée par des espaces ;
-- `SERVICE_NAME`, service utilisé pour les URLs GitLab ;
-- `MANIFESTS_PROJECT_PATH` ;
-- `MANIFESTS_PATH` ;
-- `HAS_PREPROD`.
+- `services`, liste `<service>=<image>` séparée par des espaces ;
+- `app_name` ;
+- `service_name`, service utilisé pour les URLs GitLab ;
+- `manifests_project_path` ;
+- `manifests_path` ;
+- `has_preprod`.
 
 Chaque service listé doit avoir un sous-dossier du même nom et un `Dockerfile`.
 
 `INTERNAL_GITLAB_HOST` n'en fait pas partie : c'est une constante de
 plateforme (même instance GitLab in-cluster pour toutes les apps), fournie
-par défaut dans `gitlab-ci.yml`. Une app ne la déclare que si elle cible une
-autre instance GitLab.
+par défaut dans les composants qui clonent GitLab. Une app ne la déclare que
+si elle cible une autre instance GitLab.
 
 ## Flow
 
-Le template supporte le flow plateforme :
+Les composants supportent le flow plateforme :
 
 - merge sur `main` : build dev puis déploiement dev automatique ;
 - `semantic-release` (automatique après `deploy-dev`) : création du tag
   `vX.Y.Z` si les Conventional Commits mergés le justifient ;
 - tag `vX.Y.Z` : build release puis déploiement rec automatique ;
-- gate manuel vers preprod si `HAS_PREPROD=true` ;
+- gate manuel vers preprod si `has_preprod=true` ;
 - gate manuel vers prod ;
 - rollback prod par revert d'un commit manifests.
 

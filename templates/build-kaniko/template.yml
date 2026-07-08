@@ -1,0 +1,76 @@
+spec:
+  inputs:
+    services:
+      description: >-
+        Liste "<service>=<image>" séparée par des espaces. Un sous-dossier du
+        même nom que <service>, avec un Dockerfile, doit exister à la racine
+        du dépôt applicatif (monorepo multi-services).
+      regex: '^\S+=\S+(\s+\S+=\S+)*$'
+    registry_host:
+      description: >-
+        Registre cible pour l'auth Kaniko/crane. SERVICES porte déjà une
+        image complète par service (<svc>=<registre>/<image>), mais l'auth ne
+        peut cibler qu'un seul registre à la fois — celui-ci doit
+        correspondre à l'hôte utilisé dans `services`.
+      default: ghcr.io
+---
+variables:
+  SERVICES: $[[ inputs.services ]]
+  REGISTRY_HOST: $[[ inputs.registry_host ]]
+
+.build-kaniko:
+  stage: build
+  image:
+    name: gcr.io/kaniko-project/executor:debug
+    entrypoint: [""]
+  before_script:
+    - mkdir -p /kaniko/.docker /kaniko/ssl/certs
+    - echo "${ZSCALER_CA_B64}" | base64 -d >> /kaniko/ssl/certs/ca-certificates.crt
+    - echo "{\"auths\":{\"${REGISTRY_HOST}\":{\"auth\":\"$(echo -n "x-token:${GHCR_TOKEN}" | base64)\"}}}" > /kaniko/.docker/config.json
+
+build-dev:
+  extends: .build-kaniko
+  interruptible: true
+  # needs: [] → DAG : démarre immédiatement sans attendre le stage précédent.
+  needs: []
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  script:
+    - |
+      for entry in ${SERVICES}; do
+        svc="${entry%%=*}"
+        image="${entry#*=}"
+        /kaniko/executor \
+          --context "${CI_PROJECT_DIR}/${svc}" \
+          --dockerfile "${CI_PROJECT_DIR}/${svc}/Dockerfile" \
+          --destination "${image}:${CI_COMMIT_SHORT_SHA}" \
+          --destination "${image}:dev"
+      done
+
+build-rec:
+  stage: build
+  image:
+    name: gcr.io/go-containerregistry/crane:debug
+    entrypoint: [""]
+  interruptible: false
+  variables:
+    DOCKER_CONFIG: /tmp/.docker
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  before_script:
+    - mkdir -p "${DOCKER_CONFIG}"
+    - echo "{\"auths\":{\"${REGISTRY_HOST}\":{\"auth\":\"$(echo -n "x-token:${GHCR_TOKEN}" | base64)\"}}}" > "${DOCKER_CONFIG}/config.json"
+  script:
+    # Retag l'image SHA (buildée par build-dev) avec le tag de version.
+    # Évite un rebuild : dev et prod ont le même digest.
+    - |
+      for entry in ${SERVICES}; do
+        image="${entry#*=}"
+        if crane manifest --insecure "${image}:${CI_COMMIT_TAG}" > /dev/null 2>&1; then
+          echo "${image}:${CI_COMMIT_TAG} existe déjà dans le registry, rien à faire."
+          continue
+        fi
+        crane copy --insecure \
+          "${image}:${CI_COMMIT_SHORT_SHA}" \
+          "${image}:${CI_COMMIT_TAG}"
+      done

@@ -1,0 +1,119 @@
+spec:
+  inputs:
+    app_name:
+      description: >-
+        Nom de l'app. Sert de préfixe aux namespaces cible
+        (<app_name>-dev, <app_name>-rec, ...).
+      regex: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+    service_name:
+      description: >-
+        Service "vitrine" de l'app, utilisé pour construire l'URL affichée
+        par les environnements GitLab (ex: helloworld-gui).
+      regex: '^[a-z0-9]([-a-z0-9]*[a-z0-9])?$'
+    manifests_project_path:
+      description: >-
+        Chemin du dépôt manifests GitOps ciblé, ex: "hello-groupe/helloworld-iac".
+      regex: '^[\w.-]+(/[\w.-]+)+$'
+    manifests_path:
+      description: Sous-dossier kustomize dans le dépôt manifests.
+      default: k8s
+    has_preprod:
+      description: Active le déploiement manuel vers l'environnement preprod.
+      type: boolean
+      default: false
+---
+# Constante de plateforme (même instance GitLab in-cluster pour toutes les
+# apps de ce POC, cf. platform-gitops/argocd/apps.yaml: gitlab.internalHost)
+# — surchargée localement seulement si l'app cible une autre instance GitLab.
+variables:
+  CI_SCRIPTS_DIR: ""
+  INTERNAL_GITLAB_HOST: gitlab-webservice-default.gitlab.svc.cluster.local:8181
+  APP_NAME: $[[ inputs.app_name ]]
+  SERVICE_NAME: $[[ inputs.service_name ]]
+  MANIFESTS_PROJECT_PATH: $[[ inputs.manifests_project_path ]]
+  MANIFESTS_PATH: $[[ inputs.manifests_path ]]
+  HAS_PREPROD: $[[ inputs.has_preprod ]]
+
+# Injecté par !reference dans les before_script des jobs qui ont besoin des
+# scripts de ce dépôt (Python). Clone ci-templates si CI_SCRIPTS_DIR n'est
+# pas défini localement.
+.fetch-scripts:
+  before_script:
+    - |
+      if [ -z "$CI_SCRIPTS_DIR" ]; then
+        apk add --no-cache git > /dev/null
+        git clone --quiet --depth=1 \
+          "http://root:${GITLAB_PUSH_TOKEN}@${INTERNAL_GITLAB_HOST}/shared-ci/ci-templates.git" \
+          /tmp/ci-scripts
+        export CI_SCRIPTS_DIR=/tmp/ci-scripts
+      fi
+
+.deploy-gitops:
+  stage: deploy
+  image: python:3.12-alpine
+  before_script:
+    - !reference [.fetch-scripts, before_script]
+    - pip install --quiet pyyaml
+
+deploy-dev:
+  extends: .deploy-gitops
+  resource_group: manifests-dev
+  interruptible: true
+  needs: ["build-dev"]
+  rules:
+    - if: '$CI_COMMIT_BRANCH == "main"'
+  environment:
+    name: dev
+    url: http://${SERVICE_NAME}-dev.${DOMAIN}
+    kubernetes:
+      agent: $GITLAB_K8S_AGENT
+      namespace: ${APP_NAME}-dev
+  script:
+    - python3 $CI_SCRIPTS_DIR/scripts/deploy.py dev
+
+deploy-rec:
+  extends: .deploy-gitops
+  resource_group: manifests-rec
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+  environment:
+    name: rec
+    url: http://${SERVICE_NAME}-rec.${DOMAIN}
+    kubernetes:
+      agent: $GITLAB_K8S_AGENT
+      namespace: ${APP_NAME}-rec
+  script:
+    - python3 $CI_SCRIPTS_DIR/scripts/deploy.py rec
+
+deploy-preprod:
+  extends: .deploy-gitops
+  resource_group: manifests-preprod
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/ && $HAS_PREPROD == "true"'
+      when: manual
+  environment:
+    name: preprod
+    url: http://${SERVICE_NAME}-preprod.${DOMAIN}
+    kubernetes:
+      agent: $GITLAB_K8S_AGENT
+      namespace: ${APP_NAME}-preprod
+  script:
+    - python3 $CI_SCRIPTS_DIR/scripts/deploy.py preprod
+
+deploy-prod:
+  extends: .deploy-gitops
+  resource_group: manifests-prod
+  interruptible: false
+  rules:
+    - if: '$CI_COMMIT_TAG =~ /^v\d+\.\d+\.\d+$/'
+      when: manual
+  environment:
+    name: prod
+    url: http://${SERVICE_NAME}.${DOMAIN}
+    kubernetes:
+      agent: $GITLAB_K8S_AGENT
+      namespace: ${APP_NAME}
+  script:
+    - python3 $CI_SCRIPTS_DIR/scripts/deploy.py prod

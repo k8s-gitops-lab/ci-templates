@@ -2,7 +2,12 @@
 
 ## Fichiers principaux
 
-- `gitlab-ci.yml` contient le template GitLab CI.
+- `templates/build-kaniko/template.yml` contient le composant de build
+  (`build-dev`, `build-rec`).
+- `templates/deploy-gitops/template.yml` contient le composant de déploiement
+  GitOps (`deploy-dev`, `deploy-rec`, `deploy-preprod`, `deploy-prod`).
+- `templates/promote/template.yml` contient le composant de promotion
+  (`semantic-release`, `rollback-prod`).
 - `scripts/deploy.py` met à jour les tags d'image dans le dépôt manifests.
 - `scripts/rollback.py` revert un commit sur la branche `main` du dépôt
   manifests.
@@ -10,9 +15,15 @@
   certificat auto-signé de GitLab pour le job `semantic-release`.
 - `.gitlab-ci-local.yml` facilite l'exécution locale des jobs.
 
-## Jobs
+## Composants et jobs
 
-Le template définit les stages `build`, `deploy` et `promote`.
+Les composants ne déclarent pas `stages:` : la pipeline applicative top-level
+doit déclarer `build`, `deploy` et `promote` dans cet ordre.
+
+Chaque composant déclare son contrat en `spec:inputs`, puis mappe ces inputs
+vers les variables attendues par les jobs et les scripts (`SERVICES`,
+`APP_NAME`, `SERVICE_NAME`, `MANIFESTS_PROJECT_PATH`, `MANIFESTS_PATH`,
+`HAS_PREPROD`).
 
 - `semantic-release` utilise Node 20 et les plugins semantic-release. Il
   clone `ci-templates` (comme les jobs `deploy`) pour exécuter
@@ -47,7 +58,7 @@ Le template définit les stages `build`, `deploy` et `promote`.
 
 ## Contraintes
 
-Le template dépend de GitLab, de GHCR (`ghcr.io/k8s-gitops-lab`, pas de
-registry interne au cluster) et du dépôt manifests. Il ne doit pas connaître
-la topologie Kubernetes autrement que par les variables fournies par
-l'application et par les environnements GitLab déclarés.
+Les composants dépendent de GitLab, du registre configuré par `registry_host`
+(`ghcr.io` par défaut) et du dépôt manifests. Ils ne doivent pas connaître la
+topologie Kubernetes autrement que par les inputs fournis par l'application et
+par les environnements GitLab déclarés.
