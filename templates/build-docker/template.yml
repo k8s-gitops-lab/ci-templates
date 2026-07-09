@@ -30,6 +30,10 @@ spec:
 include:
   - component: $CI_SERVER_FQDN/to-be-continuous/docker/gitlab-ci-docker@6.1.0
     inputs:
+      # Buildah explicite : le defaut amont est kaniko, et tout le contrat de
+      # ce depot (needs des deploys, overrides parallel:matrix des apps)
+      # nomme le job docker-buildah-build.
+      build-tool: buildah
       snapshot-image: $[[ inputs.snapshot_image ]]
       release-image: $[[ inputs.release_image ]]
       file: $[[ inputs.dockerfile ]]
