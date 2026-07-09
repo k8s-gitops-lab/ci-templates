@@ -72,12 +72,12 @@ docker-sbom:
     CUSTOM_CA_CERTS: ""
     DEFAULT_CA_CERTS: ""
 
-# L'image skopeo (UBI minimal) n'embarque pas python3, requis par la
-# fonction merge_json (fusion des configs d'auth source/dest) — le script
-# echoue en 'python3: command not found'. Installe via microdnf (gestionnaire
-# UBI) apres le before_script standard du composant (CA certs, auth
-# registres), sans le remplacer.
+# L'image skopeo (UBI minimal) n'embarque pas python3, requis par
+# merge_json (fusion des configs d'auth source/dest Skopeo) — appelee
+# depuis configure_registries_auth, elle-meme executee par le
+# before_script standard du composant (CA certs, auth registres) : python3
+# doit donc etre installe AVANT ce before_script, pas apres.
 docker-publish:
   before_script:
-    - !reference [.docker-base, before_script]
     - microdnf install -y python3 --setopt=install_weak_deps=0 --nodocs
+    - !reference [.docker-base, before_script]
