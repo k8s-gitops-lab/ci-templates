@@ -15,6 +15,12 @@
   manifests.
 - `.gitlab-ci-local.yml` facilite l'exécution locale des jobs.
 
+Les composants to-be-continuous sont résolus via leur miroir local sur
+l'instance (`$CI_SERVER_FQDN/to-be-continuous/<projet>/<template>@<version>`,
+projets créés par `gitlab-projects-iac`) : GitLab ne résout
+`include:component` que sur des projets de sa propre instance, jamais sur
+gitlab.com. Les liens ci-dessus pointent la documentation amont.
+
 ## Composants et jobs
 
 `deploy-gitops` ne déclare pas `stages:` (comme avant). `build-docker` et
