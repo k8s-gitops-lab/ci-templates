@@ -52,7 +52,10 @@ simple liste en input).
   sémantique — même pattern build-once/promote que l'ancien `crane copy`,
   maintenu en amont.
 - `deploy-dev`, `deploy-rec`, `deploy-preprod` et `deploy-prod` exécutent
-  `scripts/deploy.py`.
+  `scripts/deploy.py`. `deploy-dev` ne dépend que de `docker-buildah-build`
+  (pas de `docker-publish`) : il référence donc l'image **snapshot**
+  (`<service>/snapshot:<sha>`), jamais l'image release, dont le tag n'est
+  garanti qu'après `docker-publish`.
 - `rollback-prod` exécute `scripts/rollback.py`.
 
 Confiance TLS : les composants to-be-continuous lisent automatiquement la

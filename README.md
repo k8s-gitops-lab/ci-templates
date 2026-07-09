@@ -45,7 +45,7 @@ include:
       dockerfile: helloworld-svc/Dockerfile
       context_path: helloworld-svc
       snapshot_image: ghcr.io/k8s-gitops-lab/helloworld-svc/snapshot:$CI_COMMIT_SHORT_SHA
-      release_image: ghcr.io/k8s-gitops-lab/helloworld-svc
+      release_image: ghcr.io/k8s-gitops-lab/helloworld-svc:$CI_COMMIT_REF_NAME
   - component: $CI_SERVER_FQDN/shared-ci/ci-templates/deploy-gitops@v3.0.8
     inputs:
       app_name: helloworld
@@ -70,18 +70,18 @@ docker-buildah-build:
       - DOCKER_CONTEXT_PATH: helloworld-svc
         DOCKER_FILE: helloworld-svc/Dockerfile
         DOCKER_SNAPSHOT_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-svc/snapshot:$CI_COMMIT_SHORT_SHA
-        DOCKER_RELEASE_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-svc
+        DOCKER_RELEASE_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-svc:$CI_COMMIT_REF_NAME
       - DOCKER_CONTEXT_PATH: helloworld-gui
         DOCKER_FILE: helloworld-gui/Dockerfile
         DOCKER_SNAPSHOT_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-gui/snapshot:$CI_COMMIT_SHORT_SHA
-        DOCKER_RELEASE_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-gui
+        DOCKER_RELEASE_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-gui:$CI_COMMIT_REF_NAME
 docker-publish:
   parallel:
     matrix:
       - DOCKER_SNAPSHOT_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-svc/snapshot:$CI_COMMIT_SHORT_SHA
-        DOCKER_RELEASE_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-svc
+        DOCKER_RELEASE_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-svc:$CI_COMMIT_REF_NAME
       - DOCKER_SNAPSHOT_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-gui/snapshot:$CI_COMMIT_SHORT_SHA
-        DOCKER_RELEASE_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-gui
+        DOCKER_RELEASE_IMAGE: ghcr.io/k8s-gitops-lab/helloworld-gui:$CI_COMMIT_REF_NAME
 ```
 
 Voir `AGENTS.md` pour le détail du contrat (jobs, versioning, exécution locale).

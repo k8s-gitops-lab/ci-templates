@@ -79,7 +79,7 @@ amont avant de bumper : ces composants ne suivent pas le versioning de
 ```bash
 # Valider un composant sans dépendance inter-composants :
 gitlab-ci-local --file templates/build-docker/template.yml --preview \
-  --input 'release_image=ghcr.io/k8s-gitops-lab/helloworld-svc'
+  --input 'release_image=ghcr.io/k8s-gitops-lab/helloworld-svc:$CI_COMMIT_REF_NAME'
 
 # Exécuter un job depuis le repo applicatif (ex. helloworld), qui inclut ces
 # composants en local pendant le dev — nécessite CI_SCRIPTS_DIR pointant vers

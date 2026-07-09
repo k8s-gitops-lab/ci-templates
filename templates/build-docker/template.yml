@@ -10,9 +10,12 @@ spec:
       default: $CI_REGISTRY_IMAGE/snapshot:$CI_COMMIT_SHORT_SHA
     release_image:
       description: >-
-        Image "release" (repository, sans tag) poussee par docker-publish.
-        Meme remarque monorepo que snapshot_image.
-      default: $CI_REGISTRY_IMAGE
+        Image "release" poussee par docker-publish, taguee par defaut avec
+        CI_COMMIT_REF_NAME (le tag semantique sur pipeline de tag, la
+        branche sinon) — ne jamais laisser sans tag explicite, sous peine de
+        pousser silencieusement vers "latest". Meme remarque monorepo que
+        snapshot_image.
+      default: $CI_REGISTRY_IMAGE:$CI_COMMIT_REF_NAME
     dockerfile:
       description: Chemin du Dockerfile (relatif a la racine du depot applicatif).
       default: Dockerfile

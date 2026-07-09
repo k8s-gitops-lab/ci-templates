@@ -119,6 +119,11 @@ def main() -> None:
 
     if env_name == "dev":
         tag = os.environ.get("CI_COMMIT_SHORT_SHA") or "local"
+        # dev consomme l'image "snapshot" : deploy-dev depend uniquement de
+        # docker-buildah-build (pas de docker-publish), donc l'image
+        # "release" n'est pas garantie taguee au SHA a ce stade — la
+        # referencer ici creerait une course et un tag absent au registre.
+        services = {name: f"{base}/snapshot" for name, base in services.items()}
     else:
         tag = os.environ.get("CI_COMMIT_TAG") or sys.exit(f"CI_COMMIT_TAG requis pour l'env {env_name!r}.")
 
