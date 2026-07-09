@@ -47,6 +47,14 @@ include:
 # CUSTOM_CA_CERTS (PEM en clair, pas de before_script a ecrire) — voir
 # AGENTS.md.
 
+# Auth GHCR : to-be-continuous s'authentifie via DOCKER_REGISTRY_USER/
+# PASSWORD (sinon il retombe sur le registre GitLab integre, desactive sur
+# ce POC). Meme convention que l'ancien job kaniko : user factice x-token +
+# GHCR_TOKEN (variable de groupe provisionnee par gitlab-projects-iac).
+variables:
+  DOCKER_REGISTRY_USER: x-token
+  DOCKER_REGISTRY_PASSWORD: $GHCR_TOKEN
+
 # Runner Kubernetes non privilegie (pas de /dev/fuse) : fuse-overlayfs est
 # indisponible, on force le stockage vfs et l'isolation chroot — plus lent,
 # mais fonctionne sans privileges (raison historique du choix kaniko).
