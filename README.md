@@ -12,7 +12,7 @@ Contrat principal : build once, promote everywhere via les branches GitOps `dev`
 |---|---|---|
 | `templates/build-docker` | `build`, `package-build`, `package-test`, `publish` | Enrobe [to-be-continuous/docker](https://gitlab.com/to-be-continuous/docker) : build (Buildah par défaut) + retag release sans rebuild (`docker-publish`, via Skopeo). |
 | `templates/deploy-gitops` | `deploy` | Met à jour le dépôt manifests (`deploy-dev/rec/preprod/prod`), un job par environnement. |
-| `templates/promote` | `publish`, `promote` | Enrobe [to-be-continuous/semantic-release](https://gitlab.com/to-be-continuous/semantic-release) (tag `vX.Y.Z` automatique) et `rollback-prod` (revert GitOps manuel). |
+| `templates/promote` | `promote` | Enrobe [to-be-continuous/semantic-release](https://gitlab.com/to-be-continuous/semantic-release) (tag `vX.Y.Z` automatique) et `rollback-prod` (revert GitOps manuel). |
 
 Chaque composant déclare ses inputs typés (`spec:inputs`, avec description,
 default et validation `regex`/`type` quand pertinent) — voir le détail dans
@@ -35,24 +35,24 @@ stages:
   - build          # docker-hadolint
   - package-build  # docker-buildah-build
   - package-test   # docker-trivy, docker-sbom
+  - publish        # docker-publish (sur tag, avant les deploys qui en dépendent)
   - deploy         # deploy-dev/rec/preprod/prod
-  - publish        # docker-publish, semantic-release
-  - promote        # rollback-prod
+  - promote        # semantic-release (après deploy-dev), rollback-prod
 
 include:
-  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/build-docker@v3.0.0
+  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/build-docker@v3.0.2
     inputs:
       dockerfile: helloworld-svc/Dockerfile
       context_path: helloworld-svc
       snapshot_image: ghcr.io/k8s-gitops-lab/helloworld-svc/snapshot:$CI_COMMIT_SHORT_SHA
       release_image: ghcr.io/k8s-gitops-lab/helloworld-svc
-  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/deploy-gitops@v3.0.0
+  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/deploy-gitops@v3.0.2
     inputs:
       app_name: helloworld
       service_name: helloworld-gui
       manifests_project_path: hello-groupe/helloworld-iac
       has_preprod: true
-  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/promote@v3.0.0
+  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/promote@v3.0.2
     inputs:
       manifests_project_path: hello-groupe/helloworld-iac
 

@@ -29,7 +29,12 @@ include:
     inputs:
       auto-release-enabled: true
 
+# Stage promote (et non publish, defaut to-be-continuous) : semantic-release
+# suit deploy-dev, alors que docker-publish (stage publish) doit preceder
+# deploy-rec — publish est donc declare avant deploy dans la liste des stages
+# de l'app (cf. README), et la release passe apres.
 semantic-release:
+  stage: promote
   needs: ["deploy-dev"]
   variables:
     GITLAB_TOKEN: $GITLAB_PUSH_TOKEN
