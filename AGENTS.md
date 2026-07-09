@@ -100,3 +100,10 @@ plutôt qu'en bloquant sur l'exécution locale.
 - Ne pas déployer directement avec `kubectl` depuis les scripts CI.
 - Ne pas ajouter de logique spécifique à une application dans un composant.
 - Ne pas committer dans `main` sans tag si des apps doivent consommer le changement.
+
+## Gouvernance du développement
+
+Ce repo fait partie de la plateforme poc-devops : toute contribution suit
+les trois axes de maîtrise (produit, code, architecture) définis dans
+`cockpit/AGENTS.md`, section « Gouvernance du développement » — PRD et
+backlog dans `cockpit/docs/`.

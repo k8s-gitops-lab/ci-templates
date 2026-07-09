@@ -46,3 +46,11 @@ include:
 # automatiquement par le composant via la variable de plateforme
 # CUSTOM_CA_CERTS (PEM en clair, pas de before_script a ecrire) — voir
 # AGENTS.md.
+
+# Runner Kubernetes non privilegie (pas de /dev/fuse) : fuse-overlayfs est
+# indisponible, on force le stockage vfs et l'isolation chroot — plus lent,
+# mais fonctionne sans privileges (raison historique du choix kaniko).
+docker-buildah-build:
+  variables:
+    STORAGE_DRIVER: vfs
+    BUILDAH_ISOLATION: chroot
