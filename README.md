@@ -40,19 +40,20 @@ stages:
   - promote        # semantic-release (après deploy-dev), rollback-prod
 
 include:
-  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/build-docker@v3.0.5
+  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/build-docker@v3.0.6
     inputs:
       dockerfile: helloworld-svc/Dockerfile
       context_path: helloworld-svc
       snapshot_image: ghcr.io/k8s-gitops-lab/helloworld-svc/snapshot:$CI_COMMIT_SHORT_SHA
       release_image: ghcr.io/k8s-gitops-lab/helloworld-svc
-  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/deploy-gitops@v3.0.5
+  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/deploy-gitops@v3.0.6
     inputs:
       app_name: helloworld
       service_name: helloworld-gui
       manifests_project_path: hello-groupe/helloworld-iac
       has_preprod: true
-  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/promote@v3.0.5
+      services: "helloworld-svc=ghcr.io/k8s-gitops-lab/helloworld-svc helloworld-gui=ghcr.io/k8s-gitops-lab/helloworld-gui"
+  - component: $CI_SERVER_FQDN/shared-ci/ci-templates/promote@v3.0.6
     inputs:
       manifests_project_path: hello-groupe/helloworld-iac
 

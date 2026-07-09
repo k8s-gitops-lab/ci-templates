@@ -17,6 +17,13 @@ spec:
     manifests_path:
       description: Sous-dossier kustomize dans le dépôt manifests.
       default: k8s
+    services:
+      description: >-
+        Services de l'app et leur image release (sans tag), au format
+        "<svc>=<registre>/<image>" séparés par des espaces — consommé par
+        deploy.py pour mettre à jour les images kustomize du dépôt manifests
+        (même contrat que l'input services de l'ancien build-kaniko v2).
+      regex: '^\S+=\S+(\s+\S+=\S+)*$'
     has_preprod:
       description: Active le déploiement manuel vers l'environnement preprod.
       type: boolean
@@ -33,6 +40,7 @@ variables:
   MANIFESTS_PROJECT_PATH: $[[ inputs.manifests_project_path ]]
   MANIFESTS_PATH: $[[ inputs.manifests_path ]]
   HAS_PREPROD: $[[ inputs.has_preprod ]]
+  SERVICES: $[[ inputs.services ]]
 
 # Injecté par !reference dans les before_script des jobs qui ont besoin des
 # scripts de ce dépôt (Python). Clone ci-templates si CI_SCRIPTS_DIR n'est

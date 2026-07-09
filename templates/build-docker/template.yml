@@ -62,3 +62,12 @@ docker-buildah-build:
   variables:
     STORAGE_DRIVER: vfs
     BUILDAH_ISOLATION: chroot
+
+# L'image syft tourne en non-root : l'import de CUSTOM_CA_CERTS dans
+# /etc/ssl/certs echoue en Permission denied et fait tomber le job. Pas de
+# CA custom pour ce job (l'import amont est saute quand la variable est
+# vide) — le pull ghcr.io se fait avec les CAs de l'image.
+docker-sbom:
+  variables:
+    CUSTOM_CA_CERTS: ""
+    DEFAULT_CA_CERTS: ""
