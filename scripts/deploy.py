@@ -40,33 +40,65 @@ def manifests_url() -> str:
     return f"http://root:{token}@{host}/{path}.git"
 
 
-def update_kustomize_images(kustomize_dir: Path, services: dict[str, str], tag: str) -> bool:
+def update_kustomize_images(
+    kustomize_dir: Path,
+    services: dict[str, str],
+    tag: str,
+    image_targets: dict[str, str] | None = None,
+) -> bool:
     """Met à jour kustomization.yaml avec le nouveau tag. Retourne True si modifié.
 
-    Le matching se fait sur le nom de service (suffixe après le dernier "/"),
-    pas sur le nom d'image complet : si le registre change (ex. migration
-    vers un nouvel hôte), l'entrée existante est corrigée en place au lieu
-    d'être dupliquée à côté de l'ancienne, qui resterait sinon orpheline.
+    `name` reste le nom d'image tel qu'écrit en dur dans les manifests
+    (ex. helloworld-svc-deployment.yaml) : c'est la clé de correspondance
+    kustomize, elle ne doit pas changer d'un déploiement à l'autre sous
+    peine de ne plus matcher aucune ressource (l'image d'origine, sans tag,
+    serait alors laissée telle quelle -> "latest" implicite). Le matching
+    se fait sur le nom de service (suffixe après le dernier "/"), pas sur le
+    nom d'image complet : si le registre change (ex. migration vers un
+    nouvel hôte), l'entrée existante est corrigée en place au lieu d'être
+    dupliquée à côté de l'ancienne, qui resterait sinon orpheline.
+
+    `image_targets` (optionnel) redirige un service vers un autre dépôt
+    d'image (ex. dev -> image "snapshot") via `newName` — jamais en
+    réécrivant `name`, qui casserait le matching ci-dessus.
     """
+    def match_key(name: str) -> str:
+        # tolere une entree encore taguee vers "<svc>/snapshot" (etat transitoire
+        # laisse par une version precedente de ce script) pour l'auto-corriger.
+        base = name[: -len("/snapshot")] if name.endswith("/snapshot") else name
+        return base.rsplit("/", 1)[-1]
+
+    image_targets = image_targets or {}
     kfile = kustomize_dir / "kustomization.yaml"
     data = yaml.safe_load(kfile.read_text()) or {}
     images: list[dict] = data.setdefault("images", [])
     changed = False
 
     for svc_name, image_base in services.items():
+        target = image_targets.get(svc_name, image_base)
         entry = next(
-            (img for img in images if img.get("name", "").rsplit("/", 1)[-1] == svc_name),
+            (img for img in images if match_key(img.get("name", "")) == svc_name),
             None,
         )
         if entry:
             if entry.get("name") != image_base:
                 entry["name"] = image_base
                 changed = True
+            if target != image_base:
+                if entry.get("newName") != target:
+                    entry["newName"] = target
+                    changed = True
+            elif entry.pop("newName", None) is not None:
+                changed = True
             if entry.get("newTag") != tag:
                 entry["newTag"] = tag
                 changed = True
         else:
-            images.append({"name": image_base, "newTag": tag})
+            new_entry = {"name": image_base}
+            if target != image_base:
+                new_entry["newName"] = target
+            new_entry["newTag"] = tag
+            images.append(new_entry)
             changed = True
 
     if changed:
@@ -116,6 +148,7 @@ def main() -> None:
         sys.exit("La variable SERVICES est vide ou absente.")
 
     services = parse_services(services_raw)
+    image_targets: dict[str, str] = {}
 
     if env_name == "dev":
         tag = os.environ.get("CI_COMMIT_SHORT_SHA") or "local"
@@ -123,7 +156,7 @@ def main() -> None:
         # docker-buildah-build (pas de docker-publish), donc l'image
         # "release" n'est pas garantie taguee au SHA a ce stade — la
         # referencer ici creerait une course et un tag absent au registre.
-        services = {name: f"{base}/snapshot" for name, base in services.items()}
+        image_targets = {name: f"{base}/snapshot" for name, base in services.items()}
     else:
         tag = os.environ.get("CI_COMMIT_TAG") or sys.exit(f"CI_COMMIT_TAG requis pour l'env {env_name!r}.")
 
@@ -136,7 +169,7 @@ def main() -> None:
         git("clone", "--depth=1", "--branch", branch, manifests_url(), tmpdir)
 
         kustomize_dir = Path(tmpdir) / manifests_path
-        changed = update_kustomize_images(kustomize_dir, services, tag)
+        changed = update_kustomize_images(kustomize_dir, services, tag, image_targets)
 
         if domain:
             changed |= update_routes(kustomize_dir, list(services.keys()), env_name, domain)
