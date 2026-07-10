@@ -6,24 +6,30 @@ spec:
         ex: "hello-groupe/helloworld-iac").
       regex: '^[\w.-]+(/[\w.-]+)+$'
 ---
-# Constante de plateforme (même instance GitLab in-cluster pour toutes les
-# apps de ce POC, cf. platform-gitops/argocd/apps.yaml: gitlab.internalHost)
-# — surchargée localement seulement si l'app cible une autre instance GitLab.
+# Constantes de plateforme -- defauts historiques (instance GitLab locale,
+# groupes top-level), surchargeables via variable CI/CD de groupe. gitlab.com
+# (structure imbriquee sous k8s-gitops-lab, cf. cockpit/docs/backlog.md)
+# surcharge INTERNAL_GITLAB_HOST, GITLAB_PUSH_SCHEME, GITLAB_PUSH_USERNAME et
+# CI_TEMPLATES_PROJECT_PATH (gitlab-projects-iac/terraform-gitlabcom).
 variables:
   CI_SCRIPTS_DIR: ""
   INTERNAL_GITLAB_HOST: gitlab-webservice-default.gitlab.svc.cluster.local:8181
+  CI_TEMPLATES_PROJECT_PATH: shared-ci/ci-templates
+  GITLAB_PUSH_SCHEME: http
+  GITLAB_PUSH_USERNAME: root
   MANIFESTS_PROJECT_PATH: $[[ inputs.manifests_project_path ]]
 
 # Le job `semantic-release` fait main (npm install + trust manuel du
 # certificat auto-signe via un script Node ad hoc, retire) est remplace par
-# ce composant, maintenu en amont — meme outil. Le contournement TLS n'est
-# plus necessaire : le `.releaserc.json` de chaque app pointe deja sur
-# l'endpoint interne HTTP `INTERNAL_GITLAB_HOST` (pas de HTTPS a faire
-# confiance pour l'appel a l'API GitLab). CUSTOM_CA_CERTS (meme variable de
-# plateforme que build-docker) couvre le reste (accès npm via le proxy
-# sortant).
-# Resolu via le miroir local to-be-continuous/* (GitLab ne resout les
-# components que sur sa propre instance, cf. gitlab-projects-iac).
+# ce composant, maintenu en amont — meme outil. GITLAB_URL/GITLAB_TOKEN
+# passes en variables de job : le plugin @semantic-release/gitlab les
+# consomme directement, pas besoin de les figer dans le .releaserc.json de
+# chaque app (portable entre instances). CUSTOM_CA_CERTS (meme variable de
+# plateforme que build-docker) couvre la confiance TLS sortante (proxy
+# d'entreprise, cf. cockpit/docs/backlog.md section observabilite).
+# to-be-continuous est resolu directement depuis gitlab.com : le miroir
+# local (gitlab-projects-iac) est desormais inutilise, GitLab ne resolvant
+# les components que sur sa propre instance.
 include:
   - component: $CI_SERVER_FQDN/to-be-continuous/semantic-release/gitlab-ci-semrel@4.3.0
     inputs:
@@ -38,6 +44,7 @@ semantic-release:
   needs: ["deploy-dev"]
   variables:
     GITLAB_TOKEN: $GITLAB_PUSH_TOKEN
+    GITLAB_URL: "${GITLAB_PUSH_SCHEME}://${INTERNAL_GITLAB_HOST}"
 
 # Injecté par !reference dans les before_script des jobs qui ont besoin des
 # scripts de ce dépôt (Python). Clone ci-templates si CI_SCRIPTS_DIR n'est
@@ -48,7 +55,7 @@ semantic-release:
       if [ -z "$CI_SCRIPTS_DIR" ]; then
         apk add --no-cache git > /dev/null
         git clone --quiet --depth=1 \
-          "http://root:${GITLAB_PUSH_TOKEN}@${INTERNAL_GITLAB_HOST}/shared-ci/ci-templates.git" \
+          "${GITLAB_PUSH_SCHEME}://${GITLAB_PUSH_USERNAME}:${GITLAB_PUSH_TOKEN}@${INTERNAL_GITLAB_HOST}/${CI_TEMPLATES_PROJECT_PATH}.git" \
           /tmp/ci-scripts
         export CI_SCRIPTS_DIR=/tmp/ci-scripts
       fi
