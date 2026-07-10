@@ -34,10 +34,16 @@ def parse_services(raw: str) -> dict[str, str]:
 
 
 def manifests_url() -> str:
+    # scheme/username restent surchargeables (variable CI/CD de groupe) pour
+    # les apps migrees vers une instance GitLab externe (ex. gitlab.com :
+    # https + oauth2 en username conventionnel pour un push par PAT) --
+    # defauts inchanges pour l'instance locale (http interne, "root").
+    scheme = os.environ.get("GITLAB_PUSH_SCHEME", "http")
+    username = os.environ.get("GITLAB_PUSH_USERNAME", "root")
     host = os.environ["INTERNAL_GITLAB_HOST"]
     token = os.environ["GITLAB_PUSH_TOKEN"]
     path = os.environ["MANIFESTS_PROJECT_PATH"]
-    return f"http://root:{token}@{host}/{path}.git"
+    return f"{scheme}://{username}:{token}@{host}/{path}.git"
 
 
 def update_kustomize_images(
