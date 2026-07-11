@@ -33,7 +33,7 @@ spec:
 # groupes top-level), surchargeables via variable CI/CD de groupe. gitlab.com
 # (structure imbriquee sous k8s-gitops-lab, cf. cockpit/docs/backlog.md)
 # surcharge INTERNAL_GITLAB_HOST, GITLAB_PUSH_SCHEME, GITLAB_PUSH_USERNAME et
-# CI_TEMPLATES_PROJECT_PATH (gitlab-projects-iac/terraform-gitlabcom).
+# CI_TEMPLATES_PROJECT_PATH (gitlab-projects-iac/terraform).
 variables:
   CI_SCRIPTS_DIR: ""
   INTERNAL_GITLAB_HOST: gitlab-webservice-default.gitlab.svc.cluster.local:8181
